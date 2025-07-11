@@ -10,15 +10,3 @@ secret中添加变量名{DOCKERHUB_USERNAME} {DOCKERHUB_TOKEN}，以上两项需
 
 项目默认用户名：admin 默认密码:password
 
-version: '3.8'
-services:
-  stock-monitor:
-    image: {DOCKERHUB_USERNAME}/stock-monitor:latest
-    container_name: stock-monitor
-    restart: unless-stopped
-    ports:
-      - "8080:12580"
-    volumes:
-      - ./stock-data:/data
-    environment:
-      - TZ=Asia/Shanghai
