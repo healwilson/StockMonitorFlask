@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  stock-monitor:
+    image: ${{ secrets.DOCKERHUB_USERNAME }}/stock-monitor:latest
+    container_name: stock-monitor
+    ports:
+      - "12580:12580"
+    volumes:
+      - stock-monitor-data:/data
+    restart: unless-stopped
+
+volumes:
+  stock-monitor-data:

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>股票监控系统 - 登录</title>
+    <style>
+        body {
+            font-family: 'Arial', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            width: 320px;
+            text-align: center;
+            position: relative;
+        }
+        .account-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .account-form {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 320px; /* 与登录容器相同的宽度 */
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            color: #999;
+        }
+        h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .form-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        /* 统一输入框样式 */
+        .login-container input[type="text"],
+        .login-container input[type="password"],
+        .account-form input[type="text"],
+        .account-form input[type="password"] {
+            width: 100%; /* 宽度100%保持一致性 */
+            padding: 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box; /* 确保内边距不影响整体宽度 */
+        }
+        input:focus {
+            border-color: #409eff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+        }
+        .error {
+            color: #f56c6c;
+            font-size: 14px;
+            margin-top: 5px;
+            min-height: 20px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #409eff;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        button.secondary {
+            background: #909399;
+        }
+        button:hover {
+            background: #66b1ff;
+        }
+        button.secondary:hover {
+            background: #a6a9ad;
+        }
+        .links {
+            margin-top: 15px;
+            text-align: center;
+        }
+        .links a {
+            color: #409eff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>股票监控系统登录</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">用户名:</label>
+                <input type="text" id="username" value="" required>
+                <div id="usernameError" class="error"></div>
+            </div>
+            <div class="form-group">
+                <label for="password">密码:</label>
+                <input type="password" id="password" required>
+                <div id="passwordError" class="error"></div>
+            </div>
+            <button type="submit" id="loginButton">登录</button>
+            <div class="links">
+                <a id="changeAccountLink">修改用户名/密码</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- 修改账户信息模态框 -->
+    <div id="accountModal" class="account-modal">
+        <div class="account-form">
+            <span class="close-btn" id="closeAccountModal">&times;</span>
+            <h2>修改账户信息</h2>
+            <form id="accountForm">
+                <div class="form-group">
+                    <label for="currentUsername">当前用户名:</label>
+                    <input type="text" id="currentUsername" value="" placeholder="输入当前用户名">
+                    <div id="currentUsernameError" class="error"></div>
+                </div>
+                <div class="form-group">
+                    <label for="newUsername">新用户名:</label>
+                    <input type="text" id="newUsername" placeholder="输入新用户名">
+                    <div id="newUsernameError" class="error"></div>
+                </div>
+                <div class="form-group">
+                    <label for="currentPasswordForAccount">当前密码:</label>
+                    <input type="password" id="currentPasswordForAccount" placeholder="输入当前密码" required>
+                    <div id="currentPasswordForAccountError" class="error"></div>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码:</label>
+                    <input type="password" id="newPassword" placeholder="输入新密码">
+                    <div id="newPasswordError" class="error"></div>
+                </div>
+                <div class="form-group">
+                    <label for="confirmNewPassword">确认新密码:</label>
+                    <input type="password" id="confirmNewPassword" placeholder="再次输入新密码">
+                    <div id="confirmNewPasswordError" class="error"></div>
+                </div>
+
+                <button type="submit" id="submitAccountChange">保存更改</button>
+                <button type="button" class="secondary" id="cancelAccountChange">取消</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 防止多次提交的标记
+        let isLoggingIn = false;
+        let isChangingAccount = false;
+
+        // 登录表单处理
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (isLoggingIn) return;
+            isLoggingIn = true;
+
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            // 清空错误信息
+            document.getElementById('usernameError').textContent = '';
+            document.getElementById('passwordError').textContent = '';
+
+            // 显示加载状态
+            const loginButton = document.getElementById('loginButton');
+            const originalButtonText = loginButton.textContent;
+            loginButton.innerHTML = '<span class="loading"></span>登录中...';
+            loginButton.disabled = true;
+
+            try {
+                // 清除可能的旧缓存
+                await fetch('/auth/clear-cache', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                // 发送登录请求
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    // 保存令牌
+                    localStorage.setItem('auth_token', data.token);
+
+                    // 重定向到主应用页面
+                    window.location.href = '/app';
+                } else {
+                    const error = await response.json();
+                    if (error.error === '无效的凭据') {
+                        document.getElementById('passwordError').textContent = '用户名或密码错误';
+                    } else {
+                        document.getElementById('passwordError').textContent = error.error || '登录失败';
+                    }
+                }
+            } catch (err) {
+                console.error('登录请求失败:', err);
+                document.getElementById('passwordError').textContent = '网络请求失败';
+            } finally {
+                // 恢复按钮状态
+                loginButton.textContent = originalButtonText;
+                loginButton.disabled = false;
+                isLoggingIn = false;
+            }
+        });
+
+        // 显示修改账户信息模态框
+        document.getElementById('changeAccountLink').addEventListener('click', () => {
+            // 自动填充当前输入的用户名
+            const username = document.getElementById('username').value;
+            if (username) {
+                document.getElementById('currentUsername').value = username;
+            }
+            document.getElementById('accountModal').style.display = 'flex';
+        });
+
+        // 关闭修改账户信息模态框
+        document.getElementById('closeAccountModal').addEventListener('click', () => {
+            document.getElementById('accountModal').style.display = 'none';
+        });
+
+        document.getElementById('cancelAccountChange').addEventListener('click', () => {
+            document.getElementById('accountModal').style.display = 'none';
+        });
+
+        // 修改账户信息表单处理
+        document.getElementById('accountForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (isChangingAccount) return;
+            isChangingAccount = true;
+
+            const currentUsername = document.getElementById('currentUsername').value;
+            const newUsername = document.getElementById('newUsername').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+            const currentPassword = document.getElementById('currentPasswordForAccount').value;
+
+            // 清空错误信息
+            document.getElementById('currentUsernameError').textContent = '';
+            document.getElementById('newUsernameError').textContent = '';
+            document.getElementById('newPasswordError').textContent = '';
+            document.getElementById('confirmNewPasswordError').textContent = '';
+            document.getElementById('currentPasswordForAccountError').textContent = '';
+
+            // 验证必填字段
+            let isValid = true;
+
+            if (!currentUsername) {
+                document.getElementById('currentUsernameError').textContent = '当前用户名不能为空';
+                isValid = false;
+            }
+
+            if (!currentPassword) {
+                document.getElementById('currentPasswordForAccountError').textContent = '当前密码不能为空';
+                isValid = false;
+            }
+
+            // 检查是否填写了新用户名或新密码
+            const hasNewUsername = newUsername.trim().length > 0;
+            const hasNewPassword = newPassword.trim().length > 0;
+
+            if (!hasNewUsername && !hasNewPassword) {
+                document.getElementById('newUsernameError').textContent = '请输入新用户名或新密码';
+                isValid = false;
+            }
+
+            // 如果填写了新密码，需要验证
+            if (hasNewPassword) {
+                if (newPassword.length < 6) {
+                    document.getElementById('newPasswordError').textContent = '密码长度至少为6位';
+                    isValid = false;
+                }
+
+                if (newPassword !== confirmNewPassword) {
+                    document.getElementById('confirmNewPasswordError').textContent = '两次输入的新密码不一致';
+                    isValid = false;
+                }
+            }
+
+            if (!isValid) {
+                isChangingAccount = false;
+                return;
+            }
+
+            // 显示加载状态
+            const submitButton = document.getElementById('submitAccountChange');
+            const originalButtonText = submitButton.textContent;
+            submitButton.innerHTML = '<span class="loading"></span>保存中...';
+            submitButton.disabled = true;
+
+            try {
+                // 发送修改账户信息请求
+                const response = await fetch('/auth/update-account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_username: currentUsername,
+                        new_username: newUsername,
+                        new_password: newPassword,
+                        current_password: currentPassword
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        alert('账户信息更新成功！');
+
+                        // 清空表单并关闭模态框
+                        document.getElementById('accountForm').reset();
+                        document.getElementById('accountModal').style.display = 'none';
+
+                        // 更新登录表单中的用户名
+                        if (newUsername) {
+                            document.getElementById('username').value = newUsername;
+                        }
+
+                        // 清空密码字段
+                        document.getElementById('password').value = '';
+
+                        // 如果修改的是当前用户，建议重新登录
+                        if (currentUsername === document.getElementById('username').value) {
+                            alert('请使用新的账户信息重新登录');
+                        }
+                    } else {
+                        alert(`更新失败: ${data.message}`);
+                    }
+                } else {
+                    const error = await response.json();
+                    if (error.error === '当前密码错误') {
+                        document.getElementById('currentPasswordForAccountError').textContent = '当前密码错误';
+                    } else if (error.error === '用户不存在') {
+                        document.getElementById('currentUsernameError').textContent = '用户不存在';
+                    } else if (error.error === '新用户名已存在') {
+                        document.getElementById('newUsernameError').textContent = '新用户名已被使用';
+                    } else {
+                        alert(`更新失败: ${error.error}`);
+                    }
+                }
+            } catch (err) {
+                console.error('更新账户信息请求失败:', err);
+                alert('网络请求失败');
+            } finally {
+                // 恢复按钮状态
+                submitButton.textContent = originalButtonText;
+                submitButton.disabled = false;
+                isChangingAccount = false;
+            }
+        });
+    </script>
+</body>
+</html>
