@@ -7,10 +7,10 @@ logger = logging.getLogger("ConfigManager")
 class ConfigManager:
     def __init__(self, config_file):
         self.config_file = config_file
-        self._lock = threading.Lock()  # 新增线程锁
+        self._lock = threading.Lock()
         self.default_config = {
-            "pairs": [["sh600519", "sz000858"]],
-            "active_pair": "sh600519-sz000858"
+            "pairs": [],               # 空列表，不再预设任何套利对
+            "active_pair": ""          # 空字符串
         }
 
     def load_config(self):
@@ -22,23 +22,16 @@ class ConfigManager:
                 config = {}
                 logger.warning("Config file not found or invalid, using defaults")
 
-            # 兼容旧格式
-            if "stock1" in config and "stock2" in config:
-                code1 = config.pop("stock1")
-                code2 = config.pop("stock2")
-                config["pairs"] = [[code1, code2]]
-                config["active_pair"] = f"{code1}-{code2}"
-                logger.info("Migrated old config format")
-
             # 补全缺失字段
             for key, val in self.default_config.items():
                 config.setdefault(key, val)
 
-            # 确保 active_pair 有效
+            # 确保 active_pair 有效（如果 pairs 为空，则 active_pair 也为空）
             valid_ids = [f"{a}-{b}" for a, b in config.get("pairs", [])]
             if config["active_pair"] not in valid_ids:
                 config["active_pair"] = valid_ids[0] if valid_ids else ""
-                logger.warning(f"Reset active_pair to {config['active_pair']}")
+                if config["active_pair"]:
+                    logger.info(f"Auto-fixed active_pair to {config['active_pair']}")
 
             return config
 
