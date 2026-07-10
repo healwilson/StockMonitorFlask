@@ -64,6 +64,43 @@ def init_pair_manager():
 
 init_pair_manager()
 
+def ensure_default_user():
+    """确保默认用户存在"""
+    try:
+        if not os.path.exists(USER_DB_PATH):
+            logger.info("User database not found, creating default user")
+            auth_manager.user_dao.add_user("admin", "password")
+            logger.info("Default user admin/password created")
+        else:
+            # 检查 admin 用户是否存在
+            users = auth_manager.user_dao.users
+            if 'admin' not in users:
+                logger.info("Admin user missing, recreating")
+                auth_manager.user_dao.add_user("admin", "password")
+    except Exception as e:
+        logger.error(f"Failed to ensure default user: {e}")
+        # 尝试手动创建
+        try:
+            import json
+            from werkzeug.security import generate_password_hash
+            from datetime import datetime
+            default_users = {
+                'admin': {
+                    'password': generate_password_hash('password'),
+                    'created_at': datetime.now().isoformat(),
+                    'updated_at': datetime.now().isoformat()
+                }
+            }
+            os.makedirs(os.path.dirname(USER_DB_PATH), exist_ok=True)
+            with open(USER_DB_PATH, 'w') as f:
+                json.dump(default_users, f, indent=2)
+            logger.info("Default user created via fallback")
+        except Exception as e2:
+            logger.error(f"Fallback also failed: {e2}")
+
+# 在 init_pair_manager() 之后调用
+ensure_default_user()
+
 # ---------- 认证路由 ----------
 @app.route('/auth/login', methods=['POST'])
 def login():
