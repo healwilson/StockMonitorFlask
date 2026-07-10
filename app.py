@@ -72,14 +72,12 @@ def ensure_default_user():
             auth_manager.user_dao.add_user("admin", "password")
             logger.info("Default user admin/password created")
         else:
-            # 检查 admin 用户是否存在
             users = auth_manager.user_dao.users
             if 'admin' not in users:
                 logger.info("Admin user missing, recreating")
                 auth_manager.user_dao.add_user("admin", "password")
     except Exception as e:
         logger.error(f"Failed to ensure default user: {e}")
-        # 尝试手动创建
         try:
             import json
             from werkzeug.security import generate_password_hash
@@ -98,7 +96,6 @@ def ensure_default_user():
         except Exception as e2:
             logger.error(f"Fallback also failed: {e2}")
 
-# 在 init_pair_manager() 之后调用
 ensure_default_user()
 
 # ---------- 认证路由 ----------
@@ -148,6 +145,17 @@ def get_pairs():
     with pair_manager_lock:
         pair_ids = pair_manager.get_pair_ids()
         active = pair_manager.active_pair_id
+
+        # 【修复】校验 active 是否有效，若无效则自动修正
+        if active not in pair_ids and pair_ids:
+            active = pair_ids[0]
+            pair_manager.switch_to(active)
+            # 同步更新配置文件
+            config = config_manager.load_config()
+            config["active_pair"] = active
+            config_manager.save_config(config)
+            logger.info(f"Auto-fixed active_pair to {active}")
+
     return jsonify({"pairs": pair_ids, "active": active})
 
 @app.route('/api/add-pair', methods=['POST'])
