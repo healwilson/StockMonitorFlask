@@ -65,7 +65,6 @@ def init_pair_manager():
 init_pair_manager()
 
 def ensure_default_user():
-    """确保默认用户存在"""
     try:
         if not os.path.exists(USER_DB_PATH):
             logger.info("User database not found, creating default user")
@@ -145,17 +144,7 @@ def get_pairs():
     with pair_manager_lock:
         pair_ids = pair_manager.get_pair_ids()
         active = pair_manager.active_pair_id
-
-        # 【修复】校验 active 是否有效，若无效则自动修正
-        if active not in pair_ids and pair_ids:
-            active = pair_ids[0]
-            pair_manager.switch_to(active)
-            # 同步更新配置文件
-            config = config_manager.load_config()
-            config["active_pair"] = active
-            config_manager.save_config(config)
-            logger.info(f"Auto-fixed active_pair to {active}")
-
+        # 不再自动修复，让前端处理无效 active
     return jsonify({"pairs": pair_ids, "active": active})
 
 @app.route('/api/add-pair', methods=['POST'])
@@ -223,7 +212,6 @@ def get_data():
             return jsonify({"error": "No pair configured"}), 400
 
         data = target_app.get_frontend_data()
-        # 补充指数数据（全局）
         index_codes = [
             "sh000001", "sz399001", "sz399006", "sh000688",
             "sh000016", "sh000300", "sh000905", "sh000852"
