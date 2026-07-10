@@ -191,23 +191,93 @@
         .header h1 { margin-bottom: 5px; font-size: 28px; color: #2c3e50; }
         .update-time { color: #7f8c8d; font-size: 14px; }
 
-        /* 配置区域样式 */
-        .config-section {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            margin-bottom: 20px;
+        /* 标签栏样式 */
+        .pair-tabs {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
-        .config-row {
+        /* 新增：编辑按钮样式 */
+        .edit-note {
+            cursor: pointer;
+            margin-left: 4px;
+            opacity: 0.6;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .edit-note:hover {
+            opacity: 1;
+            color: #409EFF;
+        }
+        .pair-tab {
+            padding: 8px 16px;
+            background: #ecf5ff;
+            border: 1px solid #b3d8ff;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #409eff;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .pair-tab.active {
+            background: #409eff;
+            color: white;
+            border-color: #409eff;
+        }
+        .pair-tab .delete-pair {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.6;
+            margin-left: 4px;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .pair-tab .delete-pair:hover {
+            opacity: 1;
+        }
+        #addPairBtn {
+            padding: 6px 16px;
+            background: #409eff;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        #addPairBtn:hover {
+            background: #66b1ff;
+        }
+
+        /* 添加套利对表单（默认隐藏） */
+        #addPairSection {
+            display: none;
+        }
+        #addPairSection .config-row {
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
             margin-bottom: 15px;
         }
-        .config-item { flex: 1; min-width: 200px; text-align: center;}
-        .config-item label { display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 20px;}
-        .config-item input {
+        #addPairSection .config-item {
+            flex: 1;
+            min-width: 200px;
+            text-align: center;
+        }
+        #addPairSection .config-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 20px;
+        }
+        #addPairSection .config-item input {
             width: 100%;
             padding: 12px;
             border: 1px solid #dcdfe6;
@@ -216,10 +286,15 @@
             transition: border-color 0.3s;
             text-align: center;
         }
-        .config-item input:focus {
+        #addPairSection .config-item input:focus {
             border-color: #409eff;
             outline: none;
             box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
         }
         .save-btn {
             background: #409eff;
@@ -236,6 +311,10 @@
             width: 200px;
         }
         .save-btn:hover { background: #66b1ff; }
+        .save-btn.cancel {
+            background: #909399;
+        }
+        .save-btn.cancel:hover { background: #a6a9ad; }
 
         /* 股票信息区域 */
         .stocks-section {
@@ -333,12 +412,12 @@
             font-size: 14px;
             color: #7f8c8d;
         }
-        
+
         /* 手机专用样式 */
         .mobile-view {
             display: none;
         }
-        
+
         @media (max-width: 480px) {
             .desktop-view {
                 display: none;
@@ -346,25 +425,25 @@
             .mobile-view {
                 display: block;
             }
-            
+
             .config-row {
                 flex-direction: column;
                 gap: 10px;
             }
-            
+
             .stocks-section {
                 gap: 10px;
             }
-            
+
             .chart-canvas {
                 height: 250px;
             }
-            
+
             .stats-container {
                 flex-direction: column;
                 gap: 8px;
             }
-            
+
             .stock-chart {
                 height: 120px;
             }
@@ -377,13 +456,11 @@
         <div class="header">
             <h1>股票价差监控系统</h1>
             <div class="update-time">本地时间: <span id="updateTime">--:--:--</span></div>
-            <!-- 添加登出按钮 -->
             <button id="logoutButton" class="logout-btn">登出</button>
         </div>
 
-        <!-- 大盘指数区域 - 清晰的上四下四布局 -->
+        <!-- 大盘指数区域 -->
         <div class="index-section">
-            <!-- 第一行四个指数 -->
             <div class="index-item" data-code="sh000001">
                 <div class="index-name">上证指数</div>
                 <div class="index-price">--</div>
@@ -404,8 +481,6 @@
                 <div class="index-price">--</div>
                 <div class="index-change">--%</div>
             </div>
-            
-            <!-- 第二行四个指数 -->
             <div class="index-item" data-code="sh000016">
                 <div class="index-name">上证50</div>
                 <div class="index-price">--</div>
@@ -428,19 +503,28 @@
             </div>
         </div>
 
-        <!-- 配置区域 -->
-        <div class="config-section">
+        <!-- 套利对标签栏 -->
+        <div class="pair-tabs">
+            <div id="pairTabsContainer" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+            <button id="addPairBtn">+ 新建套利对</button>
+        </div>
+
+        <!-- 添加套利对表单（默认隐藏） -->
+        <div id="addPairSection" class="config-section">
             <div class="config-row">
                 <div class="config-item">
-                    <label for="stock1">股票1代码 </label>
-                    <input type="text" id="stock1" placeholder="输入股票代码">
+                    <label for="newStock1">股票1代码</label>
+                    <input type="text" id="newStock1" placeholder="输入股票代码">
                 </div>
                 <div class="config-item">
-                    <label for="stock2">股票2代码 </label>
-                    <input type="text" id="stock2" placeholder="输入股票代码">
+                    <label for="newStock2">股票2代码</label>
+                    <input type="text" id="newStock2" placeholder="输入股票代码">
                 </div>
             </div>
-            <button id="saveConfig" class="save-btn">保存配置</button>
+            <div class="btn-group">
+                <button id="confirmAddPair" class="save-btn" style="width:auto; padding:10px 40px;">确认添加</button>
+                <button id="cancelAddPair" class="save-btn cancel" style="width:auto; padding:10px 40px;">取消</button>
+            </div>
         </div>
 
         <!-- 股票信息区域 -->
@@ -451,7 +535,6 @@
                     <div id="stock1-price" class="stock-price">¥--</div>
                     <div id="stock1-change" class="stock-change">--%</div>
                 </div>
-                <!-- 股票1走势图 -->
                 <div class="stock-chart">
                     <div id="stock1-chart" class="stock-chart-canvas"></div>
                 </div>
@@ -462,7 +545,6 @@
                     <div id="stock2-price" class="stock-price">¥--</div>
                     <div id="stock2-change" class="stock-change">--%</div>
                 </div>
-                <!-- 股票2走势图 -->
                 <div class="stock-chart">
                     <div id="stock2-chart" class="stock-chart-canvas"></div>
                 </div>
@@ -473,8 +555,6 @@
         <div class="chart-container">
             <div class="chart-title">当日价差走势</div>
             <div id="intradayChart" class="chart-canvas"></div>
-
-            <!-- 当日统计信息 -->
             <div class="stats-container">
                 <div class="stat-item">
                     <div class="stat-label">当前价差</div>
@@ -498,8 +578,6 @@
         <div class="chart-container">
             <div class="chart-title">五日价差走势</div>
             <div id="fiveDayChart" class="chart-canvas"></div>
-
-            <!-- 五日统计信息 -->
             <div class="stats-container">
                 <div class="stat-item">
                     <div class="stat-label">当前价差</div>
@@ -522,41 +600,5 @@
 
     <script src="auth.js"></script>
     <script src="main.js"></script>
-
-    <script>
-        // 添加登出按钮事件
-        document.getElementById('logoutButton').addEventListener('click', function() {
-            // 清除令牌
-            localStorage.removeItem('auth_token');
-            // 重定向到登录页
-            window.location.href = '/login';
-        });
-
-        // 确保认证检查
-        if (window.location.pathname === '/app' && !Auth.isAuthenticated()) {
-            window.location.href = '/login';
-        }
-        
-        // 更新指数数据的函数
-        function updateIndexData(data) {
-            if (!data) return;
-            
-            document.querySelectorAll('.index-item').forEach(item => {
-                const code = item.getAttribute('data-code');
-                const index = data[code];
-                
-                if (index) {
-                    item.querySelector('.index-price').textContent = index.price.toFixed(2);
-                    
-                    const changeEl = item.querySelector('.index-change');
-                    const changePercent = index.changePercent || 0;
-                    const changeText = `${changePercent >= 0 ? '+' : ''}${(changePercent * 100).toFixed(2)}%`;
-                    
-                    changeEl.textContent = changeText;
-                    changeEl.className = `index-change ${changePercent >= 0 ? 'positive' : 'negative'}`;
-                }
-            });
-        }
-    </script>
 </body>
 </html>
