@@ -2,24 +2,21 @@ import os
 import sys
 import threading
 import logging
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect
+from flask import Flask, request, jsonify, send_from_directory, redirect
 from flask_cors import CORS
 
-# 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("MainApp")
 
-# 确保从环境变量获取路径
 CONFIG_FILE = os.getenv('CONFIG_FILE', '/data/config.ini')
 USER_DB_PATH = os.getenv('USER_DB_PATH', '/data/users.json')
 
 logger.info(f"Using config file: {CONFIG_FILE}")
 logger.info(f"Using user database: {USER_DB_PATH}")
 
-# 添加当前目录到 Python 路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
@@ -27,35 +24,31 @@ if current_dir not in sys.path:
 try:
     from config import ConfigManager
     from authentication import AuthManager
-    from data import DataService, StockMonitorApp
+    from data import DataService, StockMonitorApp, MultiPairManager
 except ImportError as e:
     logger.error(f"Import error: {e}")
-    # 尝试相对导入
     try:
         from .config import ConfigManager
         from .authentication import AuthManager
-        from .data import DataService, StockMonitorApp
+        from .data import DataService, StockMonitorApp, MultiPairManager
     except ImportError:
         logger.error("Failed to import required modules")
         exit(1)
 
 app = Flask(__name__, template_folder='templates')
-CORS(app)  # 允许跨域请求
+CORS(app)
 
-# 初始化配置管理器和认证管理器
 config_manager = ConfigManager(CONFIG_FILE)
 auth_manager = AuthManager(USER_DB_PATH)
 
-# 全局监控实例和锁
-monitor = None
-monitor_lock = threading.Lock()
+# 全局多 pair 管理器
+pair_manager = None
+pair_manager_lock = threading.Lock()
 
-# 确保配置文件存在
 if not os.path.exists(CONFIG_FILE):
     logger.info("Creating default config file")
     config_manager._create_default_config()
 
-# 创建默认用户（仅用于演示）
 try:
     if not os.path.exists(USER_DB_PATH):
         logger.info("Creating default user")
@@ -63,22 +56,27 @@ try:
 except Exception as e:
     logger.error(f"Failed to create default user: {e}")
 
-# 认证路由
+def init_pair_manager():
+    global pair_manager
+    config = config_manager.load_config()
+    pair_manager = MultiPairManager(config)
+    logger.info(f"Initialized with {len(pair_manager.apps)} pairs, active: {pair_manager.active_pair_id}")
+
+init_pair_manager()
+
+# ---------- 认证路由 ----------
 @app.route('/auth/login', methods=['POST'])
 def login():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-
     if not username or not password:
         return jsonify({'error': 'Username and password are required'}), 400
-
     token = auth_manager.login(username, password)
     if token:
         return jsonify({'token': token}), 200
     return jsonify({'error': 'Invalid credentials'}), 401
 
-# 修改账户信息路由
 @app.route('/auth/update-account', methods=['POST'])
 def update_account():
     data = request.json
@@ -86,167 +84,157 @@ def update_account():
     new_username = data.get('new_username')
     new_password = data.get('new_password')
     current_password = data.get('current_password')
-
     if not current_username or not current_password:
         return jsonify({'error': 'Current username and password are required'}), 400
-
-    # 验证并更新账户信息
-    success, message = auth_manager.update_account(
-        current_username,
-        new_username,
-        new_password,
-        current_password
-    )
-
+    success, message = auth_manager.update_account(current_username, new_username, new_password, current_password)
     if success:
         return jsonify({'status': 'success', 'message': message})
     else:
         return jsonify({'error': message}), 400
 
-# 登录页面
 @app.route('/login')
 def login_page():
     return send_from_directory('.', 'login.html')
 
-# 根路径重定向到登录
 @app.route('/')
 def root():
     return redirect('/login')
 
-# 主应用页面
 @app.route('/app')
 def main_app():
     return send_from_directory('.', 'index.html')
 
-# API路由 - 配置管理
+# ---------- 多 pair API ----------
+@app.route('/api/pairs')
+@auth_manager.protected_route
+def get_pairs():
+    with pair_manager_lock:
+        pair_ids = pair_manager.get_pair_ids()
+        active = pair_manager.active_pair_id
+    return jsonify({"pairs": pair_ids, "active": active})
+
+@app.route('/api/add-pair', methods=['POST'])
+@auth_manager.protected_route
+def add_pair():
+    data = request.json
+    code1 = data.get('stock1', '').strip()
+    code2 = data.get('stock2', '').strip()
+    if not code1 or not code2:
+        return jsonify({"error": "两个股票代码都不能为空"}), 400
+    with pair_manager_lock:
+        pid = pair_manager.add_pair(code1, code2)
+        config = config_manager.load_config()
+        pair_list = [[app_obj.stocks[0]['code'], app_obj.stocks[1]['code']] for app_obj in pair_manager.apps.values()]
+        config["pairs"] = pair_list
+        config["active_pair"] = pair_manager.active_pair_id
+        config_manager.save_config(config)
+    return jsonify({"pair_id": pid, "status": "added"})
+
+@app.route('/api/remove-pair', methods=['POST'])
+@auth_manager.protected_route
+def remove_pair():
+    data = request.json
+    pid = data.get('pair_id')
+    if not pid:
+        return jsonify({"error": "pair_id is required"}), 400
+    with pair_manager_lock:
+        if pid not in pair_manager.apps:
+            return jsonify({"error": "Pair not found"}), 404
+        pair_manager.remove_pair(pid)
+        config = config_manager.load_config()
+        pair_list = [[app_obj.stocks[0]['code'], app_obj.stocks[1]['code']] for app_obj in pair_manager.apps.values()]
+        config["pairs"] = pair_list
+        config["active_pair"] = pair_manager.active_pair_id
+        config_manager.save_config(config)
+    return jsonify({"status": "removed"})
+
+@app.route('/api/switch-pair', methods=['POST'])
+@auth_manager.protected_route
+def switch_pair():
+    data = request.json
+    pid = data.get('pair_id')
+    if not pid:
+        return jsonify({"error": "pair_id is required"}), 400
+    with pair_manager_lock:
+        if pid not in pair_manager.apps:
+            return jsonify({"error": "Pair not found"}), 404
+        pair_manager.switch_to(pid)
+        config = config_manager.load_config()
+        config["active_pair"] = pid
+        config_manager.save_config(config)
+    return jsonify({"status": "switched", "active": pid})
+
+# ---------- 获取数据（支持指定 pair） ----------
+@app.route('/api/get-data')
+@auth_manager.protected_route
+def get_data():
+    pair_id = request.args.get('pair', None)
+    with pair_manager_lock:
+        if pair_id and pair_id in pair_manager.apps:
+            target_app = pair_manager.apps[pair_id]
+        else:
+            target_app = pair_manager.get_active_app()
+        if target_app is None:
+            return jsonify({"error": "No pair configured"}), 400
+
+        data = target_app.get_frontend_data()
+        # 补充指数数据（全局）
+        index_codes = [
+            "sh000001", "sz399001", "sz399006", "sh000688",
+            "sh000016", "sh000300", "sh000905", "sh000852"
+        ]
+        index_data = DataService.get_realtime_data(index_codes)
+        for i, code in enumerate(index_codes, 1):
+            data[f"index{i}"] = index_data.get(code, {"name": f"指数{i}", "price": 0.0, "changePercent": 0.0})
+    return jsonify(data)
+
+# ---------- 兼容旧版配置接口 ----------
 @app.route('/api/config')
 @auth_manager.protected_route
 def get_config():
-    config = config_manager.load_config()
-    logger.info(f"Returning config: {config}")
-    return jsonify(config)
+    with pair_manager_lock:
+        app_obj = pair_manager.get_active_app()
+        if app_obj:
+            return jsonify({"stock1": app_obj.stocks[0]['code'], "stock2": app_obj.stocks[1]['code']})
+        return jsonify({"stock1": "", "stock2": ""})
 
 @app.route('/api/update-stocks', methods=['POST'])
 @auth_manager.protected_route
 def update_stocks():
     data = request.json
-    stock1 = data.get('stock1')
-    stock2 = data.get('stock2')
-    
-    logger.info(f"Updating stocks: {stock1}, {stock2}")
-
-    if not (stock1 and stock2):
+    stock1 = data.get('stock1', '').strip()
+    stock2 = data.get('stock2', '').strip()
+    if not stock1 or not stock2:
         return jsonify({"error": "股票代码不能为空"}), 400
-
-    # 保存新配置前先清除旧缓存
-    with monitor_lock:
-        global monitor
-        
-        # 获取旧股票代码
-        old_stock1 = config_manager.load_config().get("stock1", "")
-        old_stock2 = config_manager.load_config().get("stock2", "")
-        
-        logger.info(f"Clearing cache for old stocks: {old_stock1}, {old_stock2}")
-        
-        # 清除旧股票代码的缓存
-        DataService.clear_stock_cache(old_stock1)
-        DataService.clear_stock_cache(old_stock2)
-        
-        # 保存新配置
-        new_config = {"stock1": stock1, "stock2": stock2}
-        success = config_manager.save_config(new_config)
-        if not success:
-            logger.error("Failed to save config")
-            return jsonify({"error": "保存配置失败"}), 500
-        
-        # 更新监控实例
-        monitor = StockMonitorApp(new_config)
-        logger.info("Monitor instance updated with new config")
-    
+    with pair_manager_lock:
+        pid = f"{stock1}-{stock2}"
+        if pid not in pair_manager.apps:
+            pair_manager.add_pair(stock1, stock2)
+        pair_manager.switch_to(pid)
+        config = config_manager.load_config()
+        pair_list = [[app_obj.stocks[0]['code'], app_obj.stocks[1]['code']] for app_obj in pair_manager.apps.values()]
+        config["pairs"] = pair_list
+        config["active_pair"] = pid
+        config_manager.save_config(config)
     return jsonify({"status": "success"})
 
-# API路由 - 获取数据
-@app.route('/api/get-data')
-@auth_manager.protected_route
-def get_data():
-    with monitor_lock:
-        global monitor
-        if monitor is None:
-            # 从配置文件加载
-            config = config_manager.load_config()
-            monitor = StockMonitorApp(config)
-        
-        config_data = config_manager.load_config()
-        stock1 = config_data.get("stock1", "")
-        stock2 = config_data.get("stock2", "")
-        
-        # 确保监控实例使用最新配置
-        if (monitor.stocks[0]['code'] != stock1 or 
-            monitor.stocks[1]['code'] != stock2):
-            logger.warning("Monitor config mismatch, resetting")
-            monitor = StockMonitorApp(config_data)
-        
-        if not stock1 or not stock2:
-            logger.warning("Stock codes not configured, returning empty data")
-            return jsonify({
-                "stock1": {"code": "", "name": "Not Configured", "price": 0.0, "changePercent": 0.0},
-                "stock2": {"code": "", "name": "Not Configured", "price": 0.0, "changePercent": 0.0},
-                "diff": {"current": 0.0},
-                "intraday": {"data": [], "stats": {}},
-                "fiveDay": {"data": [], "stats": {}},
-                "stock1ChartData": {"prices": [], "times": [], "change_percent": []},
-                "stock2ChartData": {"prices": [], "times": [], "change_percent": []},
-                "index1": {"name": "上证指数", "price": 0.0, "changePercent": 0.0},
-                "index2": {"name": "深证成指", "price": 0.0, "changePercent": 0.0},
-                "index3": {"name": "创业板指", "price": 0.0, "changePercent": 0.0},
-                "index4": {"name": "科创50", "price": 0.0, "changePercent": 0.0},
-                "index5": {"name": "上证50", "price": 0.0, "changePercent": 0.0},
-                "index6": {"name": "沪深300", "price": 0.0, "changePercent": 0.0},
-                "index7": {"name": "中证500", "price": 0.0, "changePercent": 0.0},
-                "index8": {"name": "中证1000", "price": 0.0, "changePercent": 0.0}
-            })
-
-        data = monitor.get_frontend_data()
-        return jsonify(data)
-
-# 添加缓存清除接口
+# ---------- 其他路由 ----------
 @app.route('/auth/clear-cache', methods=['POST'])
 def clear_auth_cache():
-    # 强制重新加载用户数据
     auth_manager.user_dao.users = auth_manager.user_dao._load_users()
     logger.info("Auth cache cleared")
     return jsonify({"status": "success"})
 
-# 静态文件服务
 @app.route('/<path:path>')
 def serve_static(path):
-    # 允许访问的文件类型
     allowed_extensions = ('.js', '.css', '.png', '.jpg', '.ico', '.html')
-    
-    # 检查是否是API请求
     if path.startswith('api/') or path == 'api':
-        return None  # Flask将自动调用对应的API路由
-    
-    # 检查是否是登录页或主应用页
+        return None
     if path == 'login.html' or path == 'index.html' or path == '':
         return send_from_directory('.', path if path else 'index.html')
-    
-    # 检查文件扩展名是否允许
     if path.endswith(allowed_extensions):
         return send_from_directory('.', path)
-    
-    # 其他情况重定向到登录页
     return redirect('/login')
 
 if __name__ == "__main__":
-    # 创建监控实例
-    config = config_manager.load_config()
-    logger.info(f"Starting with config: {config}")
-    
-    # 只有在配置了股票代码时才创建监控实例
-    if config.get("stock1") and config.get("stock2"):
-        with monitor_lock:
-            monitor = StockMonitorApp(config)
-    
-    # 启动后端
     app.run(host='0.0.0.0', port=12580, debug=False)
