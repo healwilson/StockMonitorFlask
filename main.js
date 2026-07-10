@@ -1,3 +1,4 @@
+// main.js
 // 全局变量
 let pollInterval = 5000; // 5秒轮询一次
 let timerId = null;
@@ -10,7 +11,7 @@ let pairList = [];
 
 // 初始化应用
 function initApp() {
-    fetchPairs();           // 先获取 pairs 列表
+    fetchPairs();           // 先获取套利对列表
     setupEventListeners();
     initCharts();
 }
@@ -22,16 +23,31 @@ function fetchPairs() {
     })
     .then(response => Auth.handleResponse(response))
     .then(data => {
-        if (data) {
-            pairList = data.pairs || [];
-            currentPairId = data.active;
-            renderPairTabs();
-            if (currentPairId) {
-                startPolling();
-            }
+        if (!data) return;
+
+        // 兼容两种返回格式：字符串数组或对象数组
+        let rawPairs = data.pairs || [];
+        if (rawPairs.length > 0 && typeof rawPairs[0] === 'string') {
+            rawPairs = rawPairs.map(id => ({ id: id, note: '' }));
+        }
+
+        pairList = rawPairs;
+        currentPairId = data.active || (pairList.length > 0 ? pairList[0].id : null);
+
+        renderPairTabs();
+
+        if (currentPairId) {
+            startPolling();
+        } else {
+            document.getElementById('pairTabsContainer').innerHTML =
+                '<div style="text-align:center;color:#999;padding:20px;">暂无套利对，请点击“+ 新建套利对”添加</div>';
         }
     })
-    .catch(error => console.error('Error fetching pairs:', error));
+    .catch(error => {
+        console.error('Error fetching pairs:', error);
+        document.getElementById('pairTabsContainer').innerHTML =
+            '<div style="text-align:center;color:red;padding:20px;">加载套利对失败，请检查网络或登录状态</div>';
+    });
 }
 
 // 渲染标签栏
@@ -39,36 +55,36 @@ function renderPairTabs() {
     const container = document.getElementById('pairTabsContainer');
     if (!container) return;
     container.innerHTML = '';
-    pairList.forEach(pid => {
+
+    pairList.forEach(pair => {
+        const pid = pair.id;
+        const noteKey = `pair_note_${pid}`;
+        const localNote = localStorage.getItem(noteKey);
+        const note = localNote || pair.note || '';
+
         const tab = document.createElement('div');
         tab.className = `pair-tab ${pid === currentPairId ? 'active' : ''}`;
         tab.dataset.pairId = pid;
 
-        // 从 localStorage 读取备注
-        const noteKey = `pair_note_${pid}`;
-        const note = localStorage.getItem(noteKey) || '';
-
-        // 显示内容：如果有备注则直接显示备注，否则显示简化代码
         const parts = pid.split('-');
         const short1 = parts[0].replace(/^(sh|sz)/, '');
         const short2 = parts[1].replace(/^(sh|sz)/, '');
         const displayText = note || `${short1} vs ${short2}`;
 
-        // 标签文字
         const textSpan = document.createElement('span');
         textSpan.textContent = displayText;
 
-        // 编辑按钮（铅笔图标）
+        // 编辑按钮
         const editBtn = document.createElement('span');
         editBtn.textContent = '✎';
         editBtn.className = 'edit-note';
         editBtn.title = '编辑备注';
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const newNote = prompt('请输入该套利对的备注（例如：茅台 vs 五粮液）：', note);
+            const newNote = prompt('请输入该套利对的备注：', note);
             if (newNote !== null) {
                 localStorage.setItem(noteKey, newNote.trim());
-                renderPairTabs(); // 重新渲染标签
+                renderPairTabs();
             }
         });
 
@@ -84,7 +100,6 @@ function renderPairTabs() {
         tab.appendChild(textSpan);
         tab.appendChild(editBtn);
         tab.appendChild(delBtn);
-
         tab.addEventListener('click', () => switchPair(pid));
 
         container.appendChild(tab);
@@ -103,8 +118,7 @@ function switchPair(pid) {
     .then(() => {
         currentPairId = pid;
         renderPairTabs();
-        // 立即刷新数据
-        fetchData();
+        fetchData(); // 立即刷新数据
     })
     .catch(error => console.error('Switch pair failed:', error));
 }
@@ -119,7 +133,6 @@ function removePair(pid) {
     })
     .then(response => Auth.handleResponse(response))
     .then(() => {
-        // 删除对应的备注
         localStorage.removeItem(`pair_note_${pid}`);
         fetchPairs();
     })
@@ -576,18 +589,15 @@ function updateTime() {
 setInterval(updateTime, 1000);
 updateTime();
 
-// 主入口：DOM加载完成后初始化应用
+// 主入口
 document.addEventListener('DOMContentLoaded', function() {
-    // 如果是登录页面，不初始化主应用
     if (window.location.pathname === '/login') return;
 
-    // 检查认证状态
     if (!Auth.isAuthenticated()) {
         Auth.redirectToLogin();
         return;
     }
 
-    // 添加登出按钮事件
     const logoutButton = document.getElementById('logoutButton');
     if (logoutButton) {
         logoutButton.addEventListener('click', function() {
@@ -596,6 +606,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 正常初始化应用
     initApp();
 });
