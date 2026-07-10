@@ -25,15 +25,23 @@ function fetchPairs() {
     .then(data => {
         if (!data) return;
 
-        // 兼容两种返回格式：字符串数组或对象数组
         let rawPairs = data.pairs || [];
         if (rawPairs.length > 0 && typeof rawPairs[0] === 'string') {
             rawPairs = rawPairs.map(id => ({ id: id, note: '' }));
         }
 
-        pairList = rawPairs;
-        currentPairId = data.active || (pairList.length > 0 ? pairList[0].id : null);
+        const newActive = data.active;
 
+        // 防抖：只有在新 active 有效且确实改变时才切换
+        if (newActive && newActive !== currentPairId && rawPairs.some(p => p.id === newActive)) {
+            currentPairId = newActive;
+        } else if (!currentPairId && rawPairs.length > 0) {
+            // 如果当前没有选中任何 pair，则自动选择第一个
+            currentPairId = rawPairs[0].id;
+        }
+        // 如果 newActive 无效（比如空字符串），则不切换，保持当前选择
+
+        pairList = rawPairs;
         renderPairTabs();
 
         if (currentPairId) {
